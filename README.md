@@ -1,120 +1,105 @@
-# SIBI Learning Platform 🇮🇩🖐️
+# SIBI Learning Platform
 
-An interactive, modern web application designed to help users learn **SIBI** (*Sistem Isyarat Bahasa Indonesia* — Indonesia's official sign language). Utilizing real-time hand-tracking and machine learning models directly in the browser, the application provides instant feedback on sign correctness while ensuring complete user privacy.
+An interactive, real-time sign language recognition and learning platform for **SIBI** (Sistem Isyarat Bahasa Indonesia — Indonesia's standard sign language).
 
----
-
-## ✨ Key Features
-
-- **Real-Time Hand Gesture Recognition**: Utilizes **MediaPipe Hands** and **TensorFlow.js** for immediate sign detection.
-- **Privacy-First (On-Device Inference)**: All video frames are processed locally in the user's browser; camera feeds are never uploaded to any server.
-- **Structured Curriculum**: Lessons categorized by **Alphabets** (static signs using CNN), **Numbers**, and **Greetings/Words** (dynamic signs using LSTM).
-- **Interactive Practice Mode**: Built-in sandbox allowing users to practice gestures with visual cues and confidence scores.
-- **Progress Tracking**: Secure user registration, authentication (JWT), and persistent progress tracking.
-- **Hybrid Classifier Fallback**: Features a fallback keypoint-similarity classifier so the app remains fully functional even without pre-loaded custom neural networks.
+This platform leverages modern client-side computer vision and machine learning to evaluate user-performed hand signs in real-time. By extracting hand keypoints locally on the user's device, the application guarantees low latency, offline-capable inference, and absolute user privacy.
 
 ---
 
-## 🛠️ Tech Stack & Architecture
+## 🏗️ Architectural Overview
 
-### Frontend
-- **Framework**: React 18+ (Vite, TypeScript)
-- **Styling**: Tailwind CSS
-- **Machine Learning**: TensorFlow.js & MediaPipe Hands
-- **State Management**: Simple React hooks and context-based state
+The SIBI Learning Platform is designed as a decoupled, modern web application consisting of three distinct layers:
 
-### Backend
-- **Framework**: FastAPI (Python 3.11+)
-- **Database**: SQLite (SQLAlchemy ORM)
-- **Authentication**: JWT (JSON Web Tokens) with secure password hashing (Passlib/Bcrypt)
-- **Dependency Management**: Poetry
+```mermaid
+graph TD
+    subgraph Client [Client-Side App - Vercel]
+        UI[React / Vite UI]
+        Cam[Webcam Stream]
+        MP[MediaPipe Hands WASM]
+        TF[TensorFlow.js Engine]
+        UI --> Cam
+        Cam --> MP
+        MP -->|63-dim Landmark Vector| TF
+        TF -->|Prediction / Feedback| UI
+    end
 
-### Machine Learning Pipeline
-- **Libraries**: TensorFlow, Keras, NumPy, OpenCV
-- **Models**:
-  - **CNN**: Trained on landmark keypoints for static letter recognition.
-  - **LSTM**: Captures temporal hand movement sequences for dynamic greetings and words.
-- **Dataset**: Kaggle SIBI Alphabets dataset.
+    subgraph Service [API Backend - Containerized]
+        API[FastAPI Service]
+        DB[(SQLite / PostgreSQL)]
+        Auth[JWT / Password Hashing]
+        API <--> DB
+        API <--> Auth
+    end
 
----
+    subgraph Pipeline [Offline ML Pipeline]
+        Kaggle[SIBI Landmark Dataset]
+        Train[Python / Keras Pipeline]
+        Export[TF.js Converter]
+        Kaggle --> Train
+        Train --> Export
+        Export -->|Pre-trained Models| TF
+    end
 
-## 🚀 Getting Started
-
-### Prerequisites
-- **Node.js** (v18 or higher)
-- **Python** (3.11 or higher)
-- **Poetry** (Python package manager)
-
----
-
-### Local Development Setup
-
-#### 1. Backend Server
-Navigate to the `backend/` directory, install dependencies, and spin up the server:
-```bash
-# Navigate to backend
-cd backend
-
-# Install dependencies using Poetry
-poetry install
-
-# Run the FastAPI development server
-poetry run uvicorn app.main:app --reload --port 8000
+    UI <-->|HTTPS / JWT| API
 ```
-The backend API will run on `http://localhost:8000`. API documentation is automatically generated and accessible at `http://localhost:8000/docs`.
-
-#### 2. Frontend Application
-Navigate to the `frontend/` directory, set up the environment variables, and start the Vite development server:
-```bash
-# Navigate to frontend
-cd frontend
-
-# Copy local environment template
-cp .env.example .env
-
-# Install dependencies
-npm install
-
-# Start the development server
-npm run dev
-```
-The frontend application will be hosted on `http://localhost:5173`. Open it in your browser, register a new account, and begin practicing!
 
 ---
 
-## 📦 Production Deployment
+## 💻 Tech Stack & Engineering Details
 
-### Frontend (Vercel / Netlify)
-1. Set the build command to `npm run build` and output directory to `dist`.
-2. Configure the environment variable `VITE_API_URL` to point to your deployed FastAPI backend URL.
+### 1. Frontend & Client-Side Inference (Vite + React + TypeScript)
 
-### Backend (Render / Fly.io / Railway)
-1. Deploy using the included `backend/Procfile` or configure the startup command:
-   ```bash
-   uvicorn app.main:app --host 0.0.0.0 --port $PORT
-   ```
-2. Set up environment variables for:
-   - `DATABASE_URL` (if migrating from SQLite to PostgreSQL/MySQL, or mount a persistent volume for SQLite).
-   - `SECRET_KEY` (a secure random string for signing JWT tokens).
+The user interface is built to be fast, responsive, and secure. Rather than sending raw video frames to a remote server for processing (which causes high latency and bandwidth costs), **all compute is performed locally on the client**:
+
+* **MediaPipe Hands (WASM)**: Captures video frames from the webcam stream and runs an optimized hand-tracking pipeline to extract **21 3D hand landmarks** (a 63-dimensional coordinate vector representing $(x, y, z)$ coordinates).
+* **TensorFlow.js (TF.js)**: Runs the pre-trained neural networks directly in the browser's JavaScript runtime, achieving sub-10ms inference times.
+* **Fallback Cosine-Similarity Engine**: A mathematical keypoint-similarity classifier that compares user gestures against baseline pose vectors using spatial distances. This acts as an immediate fallback or cold-start engine.
+
+### 2. Machine Learning Pipeline (Python + TensorFlow/Keras)
+
+The classification model operates on hand landmark coordinates instead of raw pixel grids. This approach yields major advantages:
+
+* **Lighting/Skin-Tone Agnostic**: The model is completely invariant to visual noise, background environments, lighting, and skin tones since it only processes normalized mathematical coordinate frames.
+* **Ultra-Lightweight Models**: Because the input dimensionality is small ($21 \times 3 = 63$ inputs), the model files are tiny:
+  * **Static Alphabet Classifier (CNN/Dense)**: $\approx 30 \text{ KB}$
+  * **Dynamic Gesture Classifier (LSTM)**: $\approx 80 \text{ KB}$
+
+| Model Type                   | Architecture                         | Inputs                      | Outputs                   | Purpose                             |
+| :--------------------------- | :----------------------------------- | :-------------------------- | :------------------------ | :---------------------------------- |
+| **Static Classifier**  | Convolutional / Dense Neural Network | 63-dim landmark vector      | 26 alphabet labels        | Static letters (A–Z)               |
+| **Dynamic Classifier** | Long Short-Term Memory (LSTM)        | Sequences of 63-dim vectors | Target word/phrase labels | Conversational gestures & greetings |
+
+### 3. Backend API (FastAPI + SQLAlchemy)
+
+The backend manages data persistence and synchronization, providing a fast, secure API layer:
+
+* **FastAPI**: Structured around asynchronous handlers (`async/await`) for high throughput and automatically generated OpenAPI docs.
+* **JWT-Based Authentication**: Implements OAuth2 Password Bearer flow with HMAC-SHA256 signed JWT tokens for secure stateless session management.
+* **SQLAlchemy ORM**: Configured to interface with SQLite for development, easily migration-ready for enterprise databases like PostgreSQL.
+* **Progress Tracking**: Persists user stats, unlocked modules, and lessons completed.
 
 ---
 
-## 🧑‍💻 Machine Learning Workflow (Optional)
-If you wish to retrain or customize the hand gesture models:
-1. Navigate to the `ml/` directory.
-2. Install dependencies via `pip install -r requirements.txt`.
-3. Run `download_dataset.py` to fetch the SIBI dataset.
-4. Process coordinates and train the models with `extract_landmarks.py` and `train_cnn_letters.py`/`train_lstm_words.py`.
-5. Run `export_to_tfjs.py` to convert the trained `.h5` Keras models into web-friendly JSON format for the React frontend.
+## 🚀 Deployment Strategy
 
----
+### Frontend (Vercel)
 
-## 🔒 Security & Privacy
-This application is designed with user security at its core:
-- **Zero-Storage Camera Policy**: Video inputs are mapped to browser-level canvas buffers for keypoint extraction and immediately discarded.
-- **Secure Token Authentication**: User passwords are encrypted using `bcrypt`. Authentication state is preserved securely via short-lived JWT tokens.
+The frontend is optimized for deployment as a static Single Page Application (SPA) on Vercel:
 
----
+* Client-side routing is supported via rewrite rules in [`vercel.json`](file:///c:/Users/Adji/Documents/SIBI/SIBI-learning/frontend/vercel.json) redirects.
+* Static model weights and MediaPipe WASM binaries are served from the static `public/` directory for fast edge-caching on Vercel's CDN.
 
-## 📄 License
-This project is licensed under the **MIT License**.
+### Backend (Containerized)
+
+The backend FastAPI service is containerized or deployed to a platform supporting persistent storage (such as Render, Fly.io, or Railway):
+
+* Requires configuration of CORS origins to accept traffic from the Vercel frontend URL.
+* Integrates a persistent volume mount when running SQLite to prevent database wipes during container recycles.
+
+### Environment Configuration
+
+The communication between the frontend and backend is configured using standard environment variables:
+
+* **`VITE_API_URL`**: Set on Vercel to point to the live FastAPI URL.
+* **`JWT_SECRET`**: Production-grade secret key set on the backend host.
+* **`CORS_ORIGINS`**: Set on the backend to match the Vercel deployment URL.
