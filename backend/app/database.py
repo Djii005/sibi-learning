@@ -7,6 +7,7 @@ from collections.abc import Iterator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
+import os
 from app.config import get_settings
 
 
@@ -16,11 +17,16 @@ class Base(DeclarativeBase):
 
 _settings = get_settings()
 
+db_url = _settings.database_url
+if os.environ.get("VERCEL") == "1" and db_url == "sqlite:///./sibi.db":
+    db_url = "sqlite:////tmp/sibi.db"
+
 _engine_kwargs: dict[str, object] = {"future": True}
-if _settings.database_url.startswith("sqlite"):
+if db_url.startswith("sqlite"):
     _engine_kwargs["connect_args"] = {"check_same_thread": False}
 
-engine = create_engine(_settings.database_url, **_engine_kwargs)
+engine = create_engine(db_url, **_engine_kwargs)
+
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 
 

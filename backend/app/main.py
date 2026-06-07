@@ -15,13 +15,25 @@ from app.seed import seed_lessons
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    Base.metadata.create_all(bind=engine)
-    db = SessionLocal()
+    print("[DATABASE_DEBUG] Initializing database tables...")
     try:
-        seed_lessons(db)
-    finally:
-        db.close()
+        Base.metadata.create_all(bind=engine)
+        print("[DATABASE_DEBUG] Database tables created successfully.")
+        
+        db = SessionLocal()
+        try:
+            print("[DATABASE_DEBUG] Seeding lesson catalog...")
+            seed_lessons(db)
+            print("[DATABASE_DEBUG] Seeding complete.")
+        finally:
+            db.close()
+    except Exception as e:
+        import traceback
+        print(f"[DATABASE_ERROR] Database setup failed: {str(e)}")
+        print(f"[DATABASE_ERROR] Traceback: {traceback.format_exc()}")
+        raise e
     yield
+
 
 
 settings = get_settings()
