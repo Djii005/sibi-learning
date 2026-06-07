@@ -378,11 +378,11 @@ export function PracticePage(): JSX.Element {
           </div>
         </Card>
 
-        <Card ariaLabelledBy="signs-list" className="flex flex-col h-[450px] lg:h-full">
+        <Card ariaLabelledBy="signs-list">
           <h2 id="signs-list" className="text-xl font-semibold mb-3">
             Daftar isyarat
           </h2>
-          <ol className="space-y-1 overflow-y-auto pr-1 flex-1">
+          <ol className="space-y-1 overflow-y-auto pr-1 max-h-[450px] lg:max-h-[580px]">
             {lesson.signs.map((sign, idx) => {
               const isActive = idx === activeIdx;
               const isMastered = mastered.has(sign.id);
