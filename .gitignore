@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node / Vite
+node_modules/
+dist/
+.vite/
+.eslintcache
+
+# Local databases / env
+*.db
+*.sqlite*
+.env
+backend/.env
+frontend/.env
+
+# Editor
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# ML artefacts (kept out of git; reproduce via ml/ scripts)
+ml/data/
+ml/models/
+ml/landmarks_*.npz
+frontend/public/models/
+
+# Build logs
+*.log
+
+# Docs (excluded from upload)
+docs/
+

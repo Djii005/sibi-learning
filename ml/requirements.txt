@@ -1,0 +1,8 @@
+tensorflow==2.16.1
+tensorflowjs==4.22.0
+mediapipe==0.10.18
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
+scikit-learn==1.5.2
+kagglehub==0.3.4
+tqdm==4.67.0
