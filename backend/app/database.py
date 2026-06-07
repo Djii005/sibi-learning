@@ -18,6 +18,10 @@ class Base(DeclarativeBase):
 _settings = get_settings()
 
 db_url = _settings.database_url
+# SQLAlchemy requires postgresql:// instead of postgres://
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+
 if os.environ.get("VERCEL") == "1" and db_url == "sqlite:///./sibi.db":
     db_url = "sqlite:////tmp/sibi.db"
 
